@@ -64,7 +64,15 @@ if (MSVC)
     target_link_options(common_options
     INTERFACE
         $<$<CONFIG:Debug>:/NODEFAULTLIB:LIBCMT>
-        $<$<AND:$<CONFIG:Debug>,$<OR:$<BOOL:${build_win64}>,$<BOOL:${build_winarm}>>>:/DEBUG:FASTLINK>
+        # /DEBUG:FASTLINK кладёт в PDB не сами символы, а ССЫЛКИ на .obj
+        # сборочной машины. Локально это ускоряет линковку и работает, но
+        # увезённый со сборочного агента такой PDB бесполезен: объектных
+        # файлов уже нет, и минидамп из отчёта о падении по нему не читается.
+        # Поэтому FASTLINK оставляем там, где символы и так лежат рядом, а при
+        # формате Embedded (/Z7 — он обязателен под sccache, ProgramDatabase
+        # не кешируется) весь отладочный поток уже внутри .obj, и полный
+        # /DEBUG собирает из него самодостаточный PDB, который можно унести.
+        $<$<AND:$<CONFIG:Debug>,$<OR:$<BOOL:${build_win64}>,$<BOOL:${build_winarm}>>>:$<IF:$<STREQUAL:$<GENEX_EVAL:$<TARGET_PROPERTY:MSVC_DEBUG_INFORMATION_FORMAT>>,Embedded>,/DEBUG,/DEBUG:FASTLINK>>
         $<$<NOT:$<AND:$<CONFIG:Debug>,$<OR:$<BOOL:${build_win64}>,$<BOOL:${build_winarm}>>>>:$<IF:$<BOOL:$<GENEX_EVAL:$<TARGET_PROPERTY:MSVC_DEBUG_INFORMATION_FORMAT>>>,/DEBUG,/DEBUG:NONE>>
         $<$<NOT:$<CONFIG:Debug>>:/OPT:REF>
         /INCREMENTAL:NO
